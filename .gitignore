@@ -1,7 +1,11 @@
 # Swap Files
 *.sw[po]
+*~
 
 # Object files and executables
 order
 *.a
 *.o
+
+# Other things
+*.pdf
