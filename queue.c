@@ -1,5 +1,6 @@
 #include "node.h"
 #include <pthread.h>
+#include "queue.h"
 
 /**
  * Creates a new queue, initially empty.

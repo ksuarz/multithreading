@@ -3,6 +3,7 @@
 #include "list.h"
 #include "node.h"
 #include "string.h"
+#include "books.h"
 
 /**
  * Creates a new book order structure.
