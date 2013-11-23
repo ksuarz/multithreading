@@ -9,6 +9,7 @@
  * contains mutexes to implement synchronized enqueue and dequeue methods.
  */
 typedef struct queue {
+    // TODO need thing for shared memory
     node_t *last;
     pthread_mutex_t *mutex;
 } queue_t;
