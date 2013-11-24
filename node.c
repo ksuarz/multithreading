@@ -5,8 +5,8 @@
  * Creates a new node with the given data. Returns a pointer to a new node, or
  * NULL if memory allocation fails.
  */
-node_t *create_node(void *data, struct node_t *next) {
-    node_t *node = (node_t *) malloc(sizeof(struct node_t));
+node_t *create_node(void *data, node_t *next) {
+    node_t *node = (node_t *) malloc(sizeof(node_t));
     if (node) {
         node->data = data;
         node->next = next;

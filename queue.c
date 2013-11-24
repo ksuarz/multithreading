@@ -61,7 +61,7 @@ void *queue_dequeue(queue_t *queue) {
     if (queue->last == queue->last->next) {
         // Only one item left in the queue
         data = queue->last->data;
-        node_destroy(queue->last);
+        destroy_node(queue->last);
         queue->last = NULL;
     }
     else {
@@ -87,14 +87,14 @@ void queue_destroy(queue_t *queue) {
 
         if (queue->last = queue->last->next) {
             // Special case: size one queue
-            node_destroy(queue->last);
+            destroy_node(queue->last);
         }
         else {
             // Walk the linked list
             node = queue->last;
             while(node) {
                 next = node->next;
-                node_destroy(node);
+                destroy_node(node);
                 node = next;
             }
         }
