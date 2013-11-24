@@ -1,11 +1,14 @@
+#include <stdlib.h>
+
 #include "node.h"
 #include <pthread.h>
+#include "queue.h"
 
 /**
  * Creates a new queue, initially empty.
  */
 queue_t *queue_create(void) {
-    queue_t *q = (queue_t) malloc(sizeof(queue_t));
+    queue_t *q = (queue_t *) malloc(sizeof(queue_t));
     if (q) {
         q->last = NULL;
         if (pthread_mutex_init(q->mutex, NULL) != 0) {
@@ -21,7 +24,7 @@ queue_t *queue_create(void) {
  * will block until the data structure is safe to modify.
  */
 void queue_enqueue(queue_t *queue, void *data) {
-    Node *node;
+    node_t *node;
     if (!queue)
         return;
 
@@ -70,7 +73,7 @@ void *queue_dequeue(queue_t *queue) {
  * specified queue.
  */
 void queue_destroy(queue_t *queue) {
-    Node *node, *next;
+    node_t *node, *next;
     if (queue) {
         pthread_mutex_destroy(queue->mutex);
         node = queue->last;

@@ -36,7 +36,8 @@ list_t *list_create(void) {
     list_t *list = (list_t *) malloc(sizeof(list_t));
     if (list) {
         list->head = NULL;
-        pthread_mutex_init(list->mutex);
+        //pthread_mutex_init(list->mutex);
+	pthread_mutex_init(list->mutex, NULL);
     }
     return list;
 }

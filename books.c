@@ -1,14 +1,18 @@
 #define MAXLISTSIZE 128
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "list.h"
 #include "node.h"
 #include "string.h"
+#include "books.h"
 
 /**
  * Creates a new book order structure.
  */
 order_t *order_create(char *title, int customer_id, char *category) {
-    order_t order = (order_t *) malloc(sizeof(order_t));
+    order_t *order = (order_t *) malloc(sizeof(order_t));
     if (order) {
         order->customer_id = customer_id;
         order->title = (char *) malloc(strlen(title) + 1);
@@ -35,7 +39,7 @@ void order_destroy(order_t *order) {
  * if allocation fails.
  */
 receipt_t *receipt_create(char *title, float price, float remaining_credit) {
-    receipt_t receipt = (receipt_t *) malloc(sizeof(receipt_t));
+    receipt_t *receipt = (receipt_t *) malloc(sizeof(receipt_t));
     if (receipt) {
         receipt->price = price;
         receipt->remaining_credit = remaining_credit;
@@ -110,7 +114,7 @@ void database_destroy(database_t *database) {
     int i;
     if (database) {
         for (i = 0; i < MAXLISTSIZE; i++) {
-            list_destroy(database->customer_list[i], &customer_destroy);
+            list_destroy(&(database->customer_list[i]), &customer_destroy);
         }
         free(database);
     }
@@ -120,21 +124,21 @@ void database_destroy(database_t *database) {
  * Adds a new customer to the database. This returns zero on success and an
  * ERRNO on failure.
  */
-void database_add_customer(database_t database, customer_t *customer) {
+void database_add_customer(database_t *database, customer_t *customer) {
     // TODO return ERRNO
-    list_t *list = database->customer_list[customer->customer_id];
+    list_t *list = &(database->customer_list[customer->customer_id]);
     list_add(list, customer);
 }
 
 /**
  * Retrieves a customer from the database.
  */
-customer_t *database_retrieve_customer(database_t database, int customer_id) {
+customer_t *database_retrieve_customer(database_t *database, int customer_id) {
     list_t *list;
     node_t *node;
     customer_t *customer;
 
-    list = database->customer_list[customer_id % MAXLISTSIZE];
+    list = &(database->customer_list[customer_id % MAXLISTSIZE]);
     node = list->head;
     while (node) {
         customer = (customer_t *) node->data;
