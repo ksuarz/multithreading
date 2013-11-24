@@ -28,8 +28,10 @@ int is_file(char *filepath) {
  * Prints appropriate usage of this application to stdout
  */
 void print_usage() {
-    printf("./bookorder [arg1] [arg2] [arg3] \n[arg1] = the name of the database input file\n[arg2] = the name of the book order input file\n[arg3] = the list of category names\n");
-    return;
+    printf("./bookorder [arg1] [arg2] [arg3] \n"
+           "[arg1] = the name of the database input file\n"
+           "[arg2] = the name of the book order input file\n"
+           "[arg3] = the list of category names\n");
 }
 
 
