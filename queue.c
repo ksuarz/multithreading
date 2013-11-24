@@ -84,11 +84,19 @@ void queue_destroy(queue_t *queue) {
     if (queue) {
         pthread_mutex_destroy(&queue->mutex);
         pthread_cond_destroy(&queue->nonempty);
-        node = queue->last;
-        while(node) {
-            next = node->next;
-            node_destroy(node);
-            node = next;
+
+        if (queue->last = queue->last->next) {
+            // Special case: size one queue
+            node_destroy(queue->last);
+        }
+        else {
+            // Walk the linked list
+            node = queue->last;
+            while(node) {
+                next = node->next;
+                node_destroy(node);
+                node = next;
+            }
         }
         free(queue);
     }
