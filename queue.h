@@ -11,7 +11,8 @@
 typedef struct queue {
     // TODO need thing for shared memory
     node_t *last;
-    pthread_mutex_t *mutex;
+    pthread_mutex_t mutex;
+    pthread_cond_t nonempty;
 } queue_t;
 
 /**
@@ -38,5 +39,10 @@ void *queue_dequeue(queue_t *);
  * specified queue.
  */
 void queue_destroy(queue_t *);
+
+/**
+ * Peeks at the top of the queue without dequeueing it.
+ */
+const void *queue_peek(queue_t *);
 
 #endif

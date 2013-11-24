@@ -1,8 +1,8 @@
 #include <stdlib.h>
 
 #include "node.h"
-#include <pthread.h>
 #include "queue.h"
+#include <pthread.h>
 
 /**
  * Creates a new queue, initially empty.
@@ -11,7 +11,12 @@ queue_t *queue_create(void) {
     queue_t *q = (queue_t *) malloc(sizeof(queue_t));
     if (q) {
         q->last = NULL;
-        if (pthread_mutex_init(q->mutex, NULL) != 0) {
+        if (pthread_mutex_init(&q->mutex, NULL) != 0) {
+            free(q);
+            q = NULL;
+        }
+        else if (pthread_cond_init(&q->nonempty, NULL) != 0) {
+            pthread_mutex_destroy(&q->mutex);
             free(q);
             q = NULL;
         }
@@ -32,6 +37,7 @@ void queue_enqueue(queue_t *queue, void *data) {
     pthread_mutex_lock(queue->mutex);
     if (queue->last == NULL) {
         queue->last = node;
+        queue->last->next = queue->last;
     }
     else {
         node->next = queue->last->next;
@@ -47,7 +53,7 @@ void queue_enqueue(queue_t *queue, void *data) {
  */
 void *queue_dequeue(queue_t *queue) {
     void *data;
-    if (!queue || !queue->last) {
+    if (queue == NULL || queue->last == NULL) {
         return NULL;
     }
 
@@ -83,5 +89,18 @@ void queue_destroy(queue_t *queue) {
             node = next;
         }
         free(queue);
+    }
+}
+
+/**
+ * Peeks at the top of the queue without dequeueing it. If there is nothing in
+ * the queue, this returns NULL.
+ */
+const void *queue_peek(queue_t *queue) {
+    if (queue && queue->last && queue->last->next) {
+        return queue->last->next->data;
+    }
+    else {
+        return NULL;
     }
 }

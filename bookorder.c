@@ -1,3 +1,4 @@
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,11 +8,14 @@
 #include "books.h"
 
 /**
- * The queues where book orders are placed for processing. Each thread should be
- * given an ID, either 0, 1, or 2, corresponding to the three queues in this
- * array.
+ * The database containing all customer information.
  */
-queue_t *queues[3];
+database_t *customerDatabase
+
+/**
+ * The megaqueue holding all the book orders to be processed.
+ */
+queue_t *queue;
 
 /**
  * This value is zero if the consumer thread is still working and set to one
@@ -47,10 +51,49 @@ void print_usage() {
 
 
 /**
- * Code for the consumer threads. They take the orders and process them.
+ * Code for the consumer threads. They take the orders and process them. The
+ * argument to this function should be a null-terminated string representing the
+ * category name for this thread.
  */
 void *consumer_thread(void *args) {
-    // TODO
+    char *category;
+    order_t *order;
+    customer_t *customer;
+
+    // Get the category for this thread.
+    strcpy(category, (char *) args);
+
+    while (is_done != 0) {
+        // We wait until there is something in the queue
+        pthread_mutex_lock(&queue->mutex);
+        pthread_cond_wait(&queue->nonempty, &queue->mutex);
+
+        if (is_done == 0) {
+            // No more orders to process. Exit this thread.
+            pthread_mutex_unlock(&queue->mutex);
+            return NULL;
+        }
+        else if (queue->last == NULL) {
+            // The queue is empty again.
+            pthread_mutex_unlock(&queue->mutex);
+            sched_yield();
+        }
+        else if (strcmp(queue_peek(queue)->category, category) != 0) {
+            // This book is not in our category.
+            pthread_mutex_unlock(&queue->mutex);
+            sched_yield();
+        }
+        else {
+            // Process the order.
+            // TODO
+            order = (order_t *) queue_dequeue(queue);
+            // TODO may have to be placed in book order struct to absolutely
+            // guarantee proper order of execution
+            customer = database_retrieve_customer(
+                    customerDatabase,
+                    order->customer_id);
+        }
+    }
     return NULL;
 }
 
@@ -118,11 +161,12 @@ int main(int argc, char **argv) {
         return;
     }
 
-    //Set up customer database from file
-    database_t *customerDatabase = setup_database(argv[1]);
+    // Set up customer database from file
+    customerDatabase = setup_database(argv[1]);
 
-    //spawn producer thread
-    
-    //spawn consumer thread
+    // Next, set up the queue and the condition variable
+    queue = queue_create();
 
+    // Spawn producer thread
+    // TODO
 }
