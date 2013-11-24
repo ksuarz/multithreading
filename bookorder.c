@@ -14,12 +14,10 @@
 queue_t *queues[3];
 
 /**
- * The integers in this array correspond to the queues in the other array. The
- * value busy[i] is 1 if producer thread i is still not done parsing book
- * orders. Once all book orders are processed, busy[i] should be set to zero.
- * Then, consumer thread i finishes if queues[i] is empty and busy[i] is zero.
+ * This value is zero if the consumer thread is still working and set to one
+ * once it completes execution.
  */
-int busy[3];
+int is_done;
 
 /** 
  * Returns a positive number if the filename points to a readable File
@@ -71,8 +69,8 @@ void *producer_thread(void *args) {
 database_t *setup_database(char *filepath) {
     FILE *database; 
     char *entry, *lineptr, *name;
-    int customer_id, i;
     float credit_limit;
+    int customer_id, i;
     size_t len;
     ssize_t read;
     database_t *returnDatabase = database_create();
@@ -91,34 +89,21 @@ database_t *setup_database(char *filepath) {
 
     while ((read = getline(&lineptr, &len, database)) != -1) {
         newCustomer = NULL;
-        for (i=0; i<3; i++) {
-	     
-	    if (i == 0) {
-		if((entry = strtok(lineptr, "|")) != NULL) {
-		    name = (char *) malloc(strlen(entry) + 1);
-		    strcpy(name, entry);
-		}
-	    }
-	    else if (i== 1) {
-		if ((entry = strtok(NULL, "|")) != NULL) {
-		    customer_id = atoi(entry); 
-		}
-	    }
-	    else if (i == 2) {
-		if ((entry = strtok(NULL, "|")) != NULL) {
-		    credit_limit = atof(entry);
-		}
-	    }
-	    else {
-		break;
-	    }
+        if((entry = strtok(lineptr, "|")) != NULL) {
+            name = (char *) malloc(strlen(entry) + 1);
+            strcpy(name, entry);
+        }
+        if ((entry = strtok(NULL, "|")) != NULL) {
+            customer_id = atoi(entry); 
+        }
+        if ((entry = strtok(NULL, "|")) != NULL) {
+            credit_limit = atof(entry);
         }
         
         newCustomer = customer_create(name, customer_id, credit_limit);
         database_add_customer(returnDatabase, newCustomer);
 
     }
-    free(newCustomer);
     free(lineptr);
     fclose(database);
     return returnDatabase;
