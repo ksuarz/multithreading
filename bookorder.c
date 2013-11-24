@@ -65,22 +65,22 @@ void *consumer_thread(void *args) {
 
     while (is_done != 0) {
         // We wait until there is something in the queue
-        pthread_mutex_lock(&queue->mutex);
-        pthread_cond_wait(&queue->nonempty, &queue->mutex);
+        pthread_mutex_lock(&queue->mutexqueue->mutex);
+        pthread_cond_wait(&queue->nonempty, &queue->mutexqueue->mutex);
 
         if (is_done == 0) {
             // No more orders to process. Exit this thread.
-            pthread_mutex_unlock(&queue->mutex);
+            pthread_mutex_unlock(&queue->mutexqueue->mutex);
             return NULL;
         }
         else if (queue->last == NULL) {
             // The queue is empty again.
-            pthread_mutex_unlock(&queue->mutex);
+            pthread_mutex_unlock(&queue->mutexqueue->mutex);
             sched_yield();
         }
         else if (strcmp(queue_peek(queue)->category, category) != 0) {
             // This book is not in our category.
-            pthread_mutex_unlock(&queue->mutex);
+            pthread_mutex_unlock(&queue->mutexqueue->mutex);
             sched_yield();
         }
         else {

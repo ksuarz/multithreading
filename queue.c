@@ -34,7 +34,7 @@ void queue_enqueue(queue_t *queue, void *data) {
         return;
 
     node = create_node(data, NULL);
-    pthread_mutex_lock(queue->mutex);
+    pthread_mutex_lock(&queue->mutex);
     if (queue->last == NULL) {
         queue->last = node;
         queue->last->next = queue->last;
@@ -43,7 +43,7 @@ void queue_enqueue(queue_t *queue, void *data) {
         node->next = queue->last->next;
         queue->last = node;
     }
-    pthread_mutex_unlock(queue->mutex);
+    pthread_mutex_unlock(&queue->mutex);
 }
 
 /**
@@ -57,7 +57,7 @@ void *queue_dequeue(queue_t *queue) {
         return NULL;
     }
 
-    pthread_mutex_lock(queue->mutex);
+    pthread_mutex_lock(&queue->mutex);
     if (queue->last == queue->last->next) {
         // Only one item left in the queue
         data = queue->last->data;
@@ -69,7 +69,7 @@ void *queue_dequeue(queue_t *queue) {
         data = queue->last->next->data;
         queue->last->next = queue->last->next->next;
     }
-    pthread_mutex_unlock(queue->mutex);
+    pthread_mutex_unlock(&queue->mutex);
     return data;
 }
 
@@ -79,9 +79,11 @@ void *queue_dequeue(queue_t *queue) {
  * specified queue.
  */
 void queue_destroy(queue_t *queue) {
+    // TODO must destroy order structs inside the queue
     node_t *node, *next;
     if (queue) {
-        pthread_mutex_destroy(queue->mutex);
+        pthread_mutex_destroy(&queue->mutex);
+        pthread_cond_destroy(&queue->nonempty);
         node = queue->last;
         while(node) {
             next = node->next;
