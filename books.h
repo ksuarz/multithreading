@@ -3,12 +3,14 @@
 #define MAXLISTSIZE 128
 
 #include "list.h"
+#include <pthread.h>
 
 /**
  * A structure holding the information for book orders.
  */
 typedef struct order {
     char *title;
+    float price;
     int customer_id;
     char *category;
 } order_t;
@@ -16,7 +18,7 @@ typedef struct order {
 /**
  * Creates a new book order structure.
  */
-order_t *order_create(char *, int, char *);
+order_t *order_create(char *, float, int, char *);
 
 /**
  * Destroys a book order structure, freeing all associated memory.
@@ -53,6 +55,7 @@ typedef struct customer {
     float credit_limit;
     list_t *successful_orders;
     list_t *failed_orders;
+    pthread_mutex_t mutex;
 } customer_t;
 
 /**

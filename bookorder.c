@@ -57,41 +57,63 @@ void print_usage() {
  */
 void *consumer_thread(void *args) {
     char *category;
-    order_t *order;
     customer_t *customer;
+    order_t *order;
+    receipt_t *receipt;
 
     // Get the category for this thread.
     strcpy(category, (char *) args);
 
     while (is_done != 0) {
         // We wait until there is something in the queue
-        pthread_mutex_lock(&queue->mutexqueue->mutex);
-        pthread_cond_wait(&queue->nonempty, &queue->mutexqueue->mutex);
+        pthread_mutex_lock(&queue->mutex);
+        pthread_cond_wait(&queue->nonempty, &queue->mutex);
 
         if (is_done == 0) {
             // No more orders to process. Exit this thread.
-            pthread_mutex_unlock(&queue->mutexqueue->mutex);
+            pthread_mutex_unlock(&queue->mutex);
             return NULL;
         }
         else if (queue->last == NULL) {
             // The queue is empty again.
-            pthread_mutex_unlock(&queue->mutexqueue->mutex);
+            pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
         else if (strcmp(queue_peek(queue)->category, category) != 0) {
             // This book is not in our category.
-            pthread_mutex_unlock(&queue->mutexqueue->mutex);
+            pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
         else {
             // Process the order.
-            // TODO
             order = (order_t *) queue_dequeue(queue);
+            // TODO where we unlock this matters. Consider putting it at end
+            pthread_mutex_unlock(queue->mutex);
             // TODO may have to be placed in book order struct to absolutely
             // guarantee proper order of execution
             customer = database_retrieve_customer(
                     customerDatabase,
                     order->customer_id);
+
+            pthread_mutex_lock(&customer->mutex);
+            receipt = receipt_create(order->title, order->price,
+                                     customer->credit_limit - order->price);
+            if (customer->credit_limit < order->price) {
+                // Insufficient funds.
+                printf("Customer %s has insufficient funds to purchase '%s'."
+                       "Remaining credit limit is %g.\n", customer->name,
+                       order->title, customer->credit_limit);
+                list_add(customer->failed_orders, receipt);
+            }
+            else {
+                // Subtract price from remaining credit
+                customer->credit_limit -= order->price;
+                printf("Customer %s has successfully purchased '%s' for %g."
+                       "Remaining credit limit is %g.\n", customer->name,
+                       order->title, order->price, customer->credit_limit);
+                list_add(customer->successful_orders, receipt);
+            }
+            pthread_mutex_unlock(&customer->mutex);
         }
     }
     return NULL;

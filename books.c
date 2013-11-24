@@ -1,20 +1,22 @@
 #define MAXLISTSIZE 128
 
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "books.h"
 #include "list.h"
 #include "node.h"
 #include "string.h"
-#include "books.h"
 
 /**
  * Creates a new book order structure.
  */
-order_t *order_create(char *title, int customer_id, char *category) {
+order_t *order_create(char *title, float price, int cust_id, char *category) {
     order_t *order = (order_t *) malloc(sizeof(order_t));
     if (order) {
-        order->customer_id = customer_id;
+        order->customer_id = cust_id;
+        order->price = price;
         order->title = (char *) malloc(strlen(title) + 1);
         order->category = (char *) malloc(strlen(category) + 1);
         strcpy(order->title, title);
@@ -73,6 +75,7 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
         strcpy(customer->name, name);
         customer->successful_orders = list_create();
         customer->failed_orders = list_create();
+        pthread_mutex_init(&customer->mutex, NULL);
     }
     return customer;
 }
@@ -87,6 +90,7 @@ void customer_destroy(void *data) {
         free(customer->name);
         list_destroy(customer->successful_orders, &receipt_destroy);
         list_destroy(customer->failed_orders, &receipt_destroy);
+        pthread_mutex_destroy(&customer->mutex);
         free(customer);
     }
 }
