@@ -68,6 +68,7 @@ void *consumer_thread(void *args) {
 
     while (!is_done || !queue_isempty(queue)) {
         // We wait until there is something in the queue
+	printf("about to lock mutecks; category = %s\n", category);
         pthread_mutex_lock(&queue->mutex);
         pthread_cond_wait(&queue->nonempty, &queue->mutex);
 
@@ -150,6 +151,7 @@ void *producer_thread(void *args) {
 
         // Enqueue this order and alert the consumer threads
         order = order_create(title, price, customer_id, category);
+	//printf("order->title = %s\n", order->title);	
         queue_enqueue(queue, order);
         pthread_cond_signal(&queue->nonempty);
     }
@@ -248,25 +250,33 @@ int main(int argc, char **argv) {
 
     // Holds all the thread ids spawned later
     pthread_t tid[num_categories + 1];
+    printf("created pthread arr\n");
 
     // Set up customer database from file
     customerDatabase = setup_database(argv[1]);
+    printf("set up database\n");
 
     // Next, set up the queue
     queue = queue_create();
+    printf("queue create\n");
 
     // Spawn producer thread
     pthread_create(&tid[0], NULL, producer_thread, (void *) argv[2]);
+    printf("spawn \n");
 
     // Spawn all the consumer threads
     for (i = 0; i < num_categories; i++) {
         pthread_create(&tid[i + 1], NULL, consumer_thread, all_categories[i]);
     }
+    printf("spawn threads\n");
 
     // Wait for all the other threads to finish before continuing
+    printf("begin wait\n");
     for (i = 0; i < num_categories + 1; i++) {
         pthread_join(tid[i], &ignore);
+	printf("continue wait\n");
     }
+    printf("end wait\n");
 
     // Now we can print our final report
     revenue = 0.0f;
