@@ -1,12 +1,9 @@
-#define MAXLISTSIZE 128
-
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "books.h"
 #include "list.h"
 #include "node.h"
-#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * Creates a new book order structure.
@@ -81,10 +78,8 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
 /**
  * Destroys the customer, freeing all data.
  */
-void customer_destroy(void *data) {
-    customer_t *customer;
-    if (data) {
-        customer = (customer_t *) data;
+void customer_destroy(customer_t *customer) {
+    if (customer) {
         free(customer->name);
         list_destroy(customer->successful_orders, &receipt_destroy);
         list_destroy(customer->failed_orders, &receipt_destroy);
@@ -96,16 +91,7 @@ void customer_destroy(void *data) {
  * Creates a new empty database.
  */
 database_t *database_create(void) {
-    database_t *database;
-    int i;
-    
-    database = (database_t *) malloc(sizeof(database_t));
-    if (database) {
-        for (i = 0; i < MAXLISTSIZE; i++) {
-            database->customer_list[i] = list_create();
-        }
-    }
-    return database;
+    return (database_t *) malloc(sizeof(database_t));
 }
 
 /**
@@ -114,8 +100,8 @@ database_t *database_create(void) {
 void database_destroy(database_t *database) {
     int i;
     if (database) {
-        for (i = 0; i < MAXLISTSIZE; i++) {
-            list_destroy(database->customer_list[i], &customer_destroy);
+        for (i = 0; i < MAXCUSTOMERS; i++) {
+            customer_destroy(database->customer[i]);
         }
         free(database);
     }
@@ -125,26 +111,18 @@ void database_destroy(database_t *database) {
  * Adds a new customer to the database.
  */
 void database_add_customer(database_t *database, customer_t *customer) {
-    // TODO return ERRNO
-    list_t *list = database->customer_list[customer->customer_id];
-    list_add(list, customer);
+    database->customer[customer->customer_id] = customer;
 }
 
 /**
  * Retrieves a customer from the database.
  */
 customer_t *database_retrieve_customer(database_t *database, int customer_id) {
-    list_t *list;
-    node_t *node;
-    customer_t *customer;
-
-    list = database->customer_list[customer_id % MAXLISTSIZE];
-    node = list->head;
-    while (node) {
-        customer = (customer_t *) node->data;
-        if (customer->customer_id == customer_id) {
-            return customer;
-        }
+    if (customer_id >= 0 || customer_id < MAXCUSTOMERS) {
+        return database->customer[customer_id];
     }
-    return NULL;
+    else {
+        fprintf(stderr, "Customer id %d out of bounds of the database.\n", customer_id);
+        return NULL;
+    }
 }

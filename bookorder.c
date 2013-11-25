@@ -215,8 +215,8 @@ int main(int argc, char **argv) {
     customer_t *customer;
     float revenue;
     int i, num_categories;
-    list_t *customer_list, *receipt_list;
-    node_t *cust_node, *receipt_node;
+    list_t *receipt_list;
+    node_t *receipt_node;
     receipt_t *receipt;
     void *ignore;
 
@@ -270,48 +270,50 @@ int main(int argc, char **argv) {
 
     // Now we can print our final report
     revenue = 0.0f;
-    for (i = 0; i < MAXLISTSIZE; i++) {
-        customer_list = customerDatabase->customer_list[i];
-        cust_node = customer_list->head;
-        while (cust_node != NULL) {
-            customer = (customer_t *) cust_node->data;
-            printf("%s [ID: %d]\n", customer->name, customer->customer_id);
-            printf("Remaining credit: %g\n", customer->credit_limit);
-            printf("Successful orders:\n");
-            
-            if ((receipt_list = customer->successful_orders) == NULL ||
-                 receipt_list->head == NULL) {
-                printf("\tNone.\n");
-            }
-            else {
-                receipt_node = receipt_list->head;
-                while (receipt_node != NULL) {
-                    receipt = (receipt_t *) receipt_node->data;
-                    printf("\tBook: %s\n", receipt->title);
-                    printf("\tPrice: %g\n", receipt->price);
-                    printf("\tCredit remaining: %g\n\n",
-                            receipt->remaining_credit);
-                    revenue += receipt->price;
-                    receipt_node = receipt_node->next;
-                }
-            }
-
-            printf("\nFailed orders:\n");
-            if ((receipt_list = customer->failed_orders) == NULL ||
-                 receipt_list->head == NULL) {
-                printf("\tNone.\n");
-            }
-            else {
-                receipt_node = receipt_list->head;
-                while (receipt_node != NULL) {
-                    receipt = (receipt_t *) receipt_node->data;
-                    printf("\tBook: %s\n", receipt->title);
-                    printf("\tPrice: %g\n\n", receipt->price);
-                }
-            }
-            printf("\n");
-            cust_node = cust_node->next;
+    for (i = 0; i < MAXCUSTOMERS; i++) {
+        customer = customerDatabase->customer[i];
+        if (customer == NULL) {
+            continue;
         }
+
+        // Print out this customer's data
+        printf("%s [ID: %d]\n", customer->name, customer->customer_id);
+        printf("Remaining credit: %g\n", customer->credit_limit);
+
+        // Successful book orders
+        printf("Successful orders:\n");
+        if ((receipt_list = customer->successful_orders) == NULL ||
+             receipt_list->head == NULL) {
+            printf("\tNone.\n");
+        }
+        else {
+            receipt_node = receipt_list->head;
+            while (receipt_node != NULL) {
+                receipt = (receipt_t *) receipt_node->data;
+                printf("\tBook: %s\n", receipt->title);
+                printf("\tPrice: %g\n", receipt->price);
+                printf("\tCredit remaining: %g\n\n",
+                        receipt->remaining_credit);
+                revenue += receipt->price;
+                receipt_node = receipt_node->next;
+            }
+        }
+
+        // Failed book orders
+        printf("\nFailed orders:\n");
+        if ((receipt_list = customer->failed_orders) == NULL ||
+             receipt_list->head == NULL) {
+            printf("\tNone.\n");
+        }
+        else {
+            receipt_node = receipt_list->head;
+            while (receipt_node != NULL) {
+                receipt = (receipt_t *) receipt_node->data;
+                printf("\tBook: %s\n", receipt->title);
+                printf("\tPrice: %g\n\n", receipt->price);
+            }
+        }
+        printf("\n");
     }
 
     printf("Total Revenue: %g\n", revenue);
