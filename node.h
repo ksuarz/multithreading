@@ -15,11 +15,11 @@ typedef struct node node_t;
 /**
  * Creates a new node with the given data.
  */
-node_t *create_node(void *, node_t *);
+node_t *node_create(void *, node_t *);
 
 /**
  * Destroys the node, freeing all associated memory.
  */
-void destroy_node(node_t *);
+void node_destroy(node_t *);
 
 #endif

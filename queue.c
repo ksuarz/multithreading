@@ -33,7 +33,7 @@ void queue_enqueue(queue_t *queue, void *data) {
     if (!queue)
         return;
 
-    node = create_node(data, NULL);
+    node = node_create(data, NULL);
     pthread_mutex_lock(&queue->mutex);
     if (queue->last == NULL) {
         queue->last = node;
@@ -61,7 +61,7 @@ void *queue_dequeue(queue_t *queue) {
     if (queue->last == queue->last->next) {
         // Only one item left in the queue
         data = queue->last->data;
-        destroy_node(queue->last);
+        node_destroy(queue->last);
         queue->last = NULL;
     }
     else {
@@ -87,14 +87,14 @@ void queue_destroy(queue_t *queue) {
 
         if (queue->last = queue->last->next) {
             // Special case: size one queue
-            destroy_node(queue->last);
+            node_destroy(queue->last);
         }
         else {
             // Walk the linked list
             node = queue->last;
             while(node) {
                 next = node->next;
-                destroy_node(node);
+                node_destroy(node);
                 node = next;
             }
         }

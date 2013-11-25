@@ -2,7 +2,10 @@ CC = gcc
 "CFLAGS = -Wall -g"
 CFLAGS = -g
 
-all: 
+all: backend
+
+backend: books.c list.c node.c queue.c
+	$(CC) $(CFLAGS) -c books.c list.c node.c queue.c
 
 indraneel: bookorder.c books.c list.c node.c queue.c
 	$(CC) $(CFLAGS) -o bookorder bookorder.c books.c list.c node.c queue.c

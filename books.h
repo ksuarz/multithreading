@@ -72,7 +72,7 @@ void customer_destroy(void *);
  * A hash map containing all customers and their data.
  */
 typedef struct database {
-    list_t customer_list[MAXLISTSIZE];
+    list_t *customer_list[MAXLISTSIZE];
 } database_t;
 
 /**
@@ -88,7 +88,7 @@ void database_destroy(database_t *);
 /**
  * Adds a new customer to the database.
  */
-void *database_add_customer(database_t *, customer_t *);
+void database_add_customer(database_t *, customer_t *);
 
 /**
  * Retrieves a customer from the database.

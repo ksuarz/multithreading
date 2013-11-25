@@ -56,7 +56,7 @@ void list_destroy(list_t *list, void (*destroy_func)(void *)) {
             if (destroy_func) {
                 destroy_func(node->data);
             }
-            destroy_node(node);
+            node_destroy(node);
             node = next;
         }
         pthread_mutex_destroy(list->mutex);

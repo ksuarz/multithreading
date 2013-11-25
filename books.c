@@ -118,7 +118,7 @@ void database_destroy(database_t *database) {
     int i;
     if (database) {
         for (i = 0; i < MAXLISTSIZE; i++) {
-            list_destroy(&(database->customer_list[i]), &customer_destroy);
+            list_destroy(database->customer_list[i], &customer_destroy);
         }
         free(database);
     }
@@ -130,7 +130,7 @@ void database_destroy(database_t *database) {
  */
 void database_add_customer(database_t *database, customer_t *customer) {
     // TODO return ERRNO
-    list_t *list = &(database->customer_list[customer->customer_id]);
+    list_t *list = database->customer_list[customer->customer_id];
     list_add(list, customer);
 }
 
@@ -142,7 +142,7 @@ customer_t *database_retrieve_customer(database_t *database, int customer_id) {
     node_t *node;
     customer_t *customer;
 
-    list = &(database->customer_list[customer_id % MAXLISTSIZE]);
+    list = database->customer_list[customer_id % MAXLISTSIZE];
     node = list->head;
     while (node) {
         customer = (customer_t *) node->data;
