@@ -24,16 +24,6 @@ queue_t *queue;
 int is_done;
 
 /**
- * Tells us how many threads are active.
- */
-int counter;
-
-/**
- * Indicates whether or not all the threads are done or not.
- */
-pthread_cond_t complete;
-
-/**
  * Returns a positive number if the filename points to a readable File
  * Returns 0 otherwise
  */
@@ -53,10 +43,10 @@ int is_file(char *filepath) {
  * Prints appropriate usage of this application to stdout
  */
 void print_usage() {
-    printf("./bookorder <db> <orders> <catlist ...> \n"
+    printf("./bookorder <db> <orders> <catlist> \n"
            "\t[db] = the name of the database input file\n"
            "\t[orders] = the name of the book order input file\n"
-           "\t[catlist] = a list of category names, separated by spaces\n");
+           "\t[catlist] = a quoted list of category names, separated by spaces\n");
 }
 
 
@@ -140,7 +130,6 @@ void *producer_thread(void *args) {
     order_t *order;
     size_t len;
     ssize_t read;
-    pthread_t tid;
 
     // Open the text file containing orders
     len = 0;
@@ -222,19 +211,43 @@ database_t *setup_database(char *filepath) {
 
 
 int main(int argc, char **argv) {
-    pthread_t tid;
-    int i;
+    char *category, **all_categories;
+    customer_t *customer;
+    float revenue;
+    int i, num_categories;
+    list_t *customer_list, *receipt_list;
+    node_t *cust_node, *receipt_node;
+    receipt_t *receipt;
+    void *ignore;
 
     // Check for the proper amount of arguments
-    if (argc < 3) {
+    if (argc != 4) {
         fprintf(stderr, "Error: wrong number of arguments\n");
         print_usage();
         return 1;
     }
-    else if (argc < 4) {
-        fprintf(stderr, "Error: there must be at least one category.\n");
-        return 1;
+
+    // Figure out how many categories there are
+    // TODO can be cleaned up
+    all_categories = (char **) calloc(1024, sizeof(char *));
+    num_categories = 0;
+    category = strtok(argv[3], " ");
+    if (category == NULL) {
+        fprintf(stderr, "Error: Must specify at least one category.\n");
+        exit(1);
     }
+    all_categories[0] = malloc(strlen(category) + 1);
+    strcpy(all_categories[0], category);
+    num_categories++;
+
+    while ((category = strtok(NULL, " ")) != NULL) {
+        all_categories[num_categories] = malloc(strlen(category) + 1);
+        strcpy(all_categories[num_categories], category);
+        num_categories++;
+    }
+
+    // Holds all the thread ids spawned later
+    pthread_t tid[num_categories + 1];
 
     // Set up customer database from file
     customerDatabase = setup_database(argv[1]);
@@ -242,18 +255,69 @@ int main(int argc, char **argv) {
     // Next, set up the queue
     queue = queue_create();
 
-    // This is the number of threads we'll be spawning
-    counter = argc - 2;
-    pthread_cond_init(&complete, NULL);
-
     // Spawn producer thread
-    pthread_create(&tid, NULL, producer_thread, (void *) argv[2]);
+    pthread_create(&tid[0], NULL, producer_thread, (void *) argv[2]);
 
     // Spawn all the consumer threads
-    for (i = 3; i < argc; i++) {
-        pthread_create(&tid, NULL, consumer_thread, (void *) argv[i]);
+    for (i = 0; i < num_categories; i++) {
+        pthread_create(&tid[i + 1], NULL, consumer_thread, all_categories[i]);
     }
 
-    // Let the producers and consumers run
-    pthread_cond_wait()
+    // Wait for all the other threads to finish before continuing
+    for (i = 0; i < num_categories + 1; i++) {
+        pthread_join(tid[i], &ignore);
+    }
+
+    // Now we can print our final report
+    revenue = 0.0f;
+    for (i = 0; i < MAXLISTSIZE; i++) {
+        customer_list = customerDatabase->customer_list[i];
+        cust_node = customer_list->head;
+        while (cust_node != NULL) {
+            customer = (customer_t *) cust_node->data;
+            printf("%s [ID: %d]\n", customer->name, customer->customer_id);
+            printf("Remaining credit: %g\n", customer->credit_limit);
+            printf("Successful orders:\n");
+            
+            if ((receipt_list = customer->successful_orders) == NULL ||
+                 receipt_list->head == NULL) {
+                printf("\tNone.\n");
+            }
+            else {
+                receipt_node = receipt_list->head;
+                while (receipt_node != NULL) {
+                    receipt = (receipt_t *) receipt_node->data;
+                    printf("\tBook: %s\n", receipt->title);
+                    printf("\tPrice: %g\n", receipt->price);
+                    printf("\tCredit remaining: %g\n\n",
+                            receipt->remaining_credit);
+                    revenue += receipt->price;
+                    receipt_node = receipt_node->next;
+                }
+            }
+
+            printf("\nFailed orders:\n");
+            if ((receipt_list = customer->failed_orders) == NULL ||
+                 receipt_list->head == NULL) {
+                printf("\tNone.\n");
+            }
+            else {
+                receipt_node = receipt_list->head;
+                while (receipt_node != NULL) {
+                    receipt = (receipt_t *) receipt_node->data;
+                    printf("\tBook: %s\n", receipt->title);
+                    printf("\tPrice: %g\n\n", receipt->price);
+                }
+            }
+            printf("\n");
+            cust_node = cust_node->next;
+        }
+    }
+
+    printf("Total Revenue: %g\n", revenue);
+
+    // Free all the memory we allocated
+    database_destroy(customerDatabase);
+    queue_destroy(queue, NULL);
+    return 0;
 }

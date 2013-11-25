@@ -19,4 +19,4 @@ test-queue: queue.c tests/test-queue.c
 	$(CC) $(CFLAGS) -o test-queue tests/test-queue.c queue.c node.c
 clean:
 	rm -f *.o
-
+	rm -f bookorder
