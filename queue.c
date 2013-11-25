@@ -48,8 +48,7 @@ void queue_enqueue(queue_t *queue, void *data) {
 
 /**
  * Dequeues the data at the front of the queue, or NULL if there are no more
- * elements in the queue. This call will block until the data structure is safe
- * to modify.
+ * elements in the queue. This is a non-blocking function.
  */
 void *queue_dequeue(queue_t *queue) {
     void *data;
@@ -57,7 +56,6 @@ void *queue_dequeue(queue_t *queue) {
         return NULL;
     }
 
-    pthread_mutex_lock(&queue->mutex);
     if (queue->last == queue->last->next) {
         // Only one item left in the queue
         data = queue->last->data;
@@ -69,7 +67,6 @@ void *queue_dequeue(queue_t *queue) {
         data = queue->last->next->data;
         queue->last->next = queue->last->next->next;
     }
-    pthread_mutex_unlock(&queue->mutex);
     return data;
 }
 
@@ -78,14 +75,13 @@ void *queue_dequeue(queue_t *queue) {
  * threads are still waiting to perform enequeue or dequeue operations on the
  * specified queue.
  */
-void queue_destroy(queue_t *queue) {
-    // TODO must destroy order structs inside the queue
+void queue_destroy(queue_t *queue, void (*destroy_func)(void *)) {
     node_t *node, *next;
     if (queue) {
         pthread_mutex_destroy(&queue->mutex);
         pthread_cond_destroy(&queue->nonempty);
 
-        if (queue->last = queue->last->next) {
+        if (queue->last == queue->last->next) {
             // Special case: size one queue
             node_destroy(queue->last);
         }
@@ -94,6 +90,9 @@ void queue_destroy(queue_t *queue) {
             node = queue->last;
             while(node) {
                 next = node->next;
+                if (destroy_func) {
+                    destroy_func(node->data);
+                }
                 node_destroy(node);
                 node = next;
             }
@@ -103,8 +102,15 @@ void queue_destroy(queue_t *queue) {
 }
 
 /**
+ * Returns true if the queue is NULL or is empty and false otherwise.
+ */
+int queue_isempty(queue_t *queue) {
+    return queue == NULL || queue->last == NULL;
+}
+
+/**
  * Peeks at the top of the queue without dequeueing it. If there is nothing in
- * the queue, this returns NULL.
+ * the queue, this returns NULL. This is a non-blocking function.
  */
 const void *queue_peek(queue_t *queue) {
     if (queue && queue->last && queue->last->next) {

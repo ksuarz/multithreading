@@ -1,12 +1,10 @@
 #include "list.h"
 #include "node.h"
-#include <pthread.h>
 #include <stdlib.h>
 
 /**
- * Adds the given data to the list. This call will block until the data
- * structure is safe to modify.
- * On success, this returns 0. For any other error it returns 1.
+ * Adds the given data to the list. On success, this returns 0. For any other
+ * error it returns 1.
  */
 int list_add(list_t *list, void *data) {
     node_t *node;
@@ -20,10 +18,8 @@ int list_add(list_t *list, void *data) {
         return 0;
     }
     else {
-        pthread_mutex_lock(list->mutex);
         node->next = list->head;
         list->head = node;
-        pthread_mutex_unlock(list->mutex);
         return 1;
     }
 }
@@ -36,16 +32,13 @@ list_t *list_create(void) {
     list_t *list = (list_t *) malloc(sizeof(list_t));
     if (list) {
         list->head = NULL;
-        //pthread_mutex_init(list->mutex);
-	pthread_mutex_init(list->mutex, NULL);
     }
     return list;
 }
 
 /**
  * Destroys a list, freeing all associated memory. If the function pointer is
- * not NULL, it will be used to destroy the data contained in the list. Do not
- * destroy a list if threads are still waiting to modify it.
+ * not NULL, it will be used to destroy the data contained in the list.
  */
 void list_destroy(list_t *list, void (*destroy_func)(void *)) {
     node_t *node, *next;
@@ -59,7 +52,6 @@ void list_destroy(list_t *list, void (*destroy_func)(void *)) {
             node_destroy(node);
             node = next;
         }
-        pthread_mutex_destroy(list->mutex);
         free(list);
     }
 }

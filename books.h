@@ -3,7 +3,6 @@
 #define MAXLISTSIZE 128
 
 #include "list.h"
-#include <pthread.h>
 
 /**
  * A structure holding the information for book orders.
@@ -55,7 +54,6 @@ typedef struct customer {
     float credit_limit;
     list_t *successful_orders;
     list_t *failed_orders;
-    pthread_mutex_t mutex;
 } customer_t;
 
 /**

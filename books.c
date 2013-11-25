@@ -1,6 +1,5 @@
 #define MAXLISTSIZE 128
 
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -75,7 +74,6 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
         strcpy(customer->name, name);
         customer->successful_orders = list_create();
         customer->failed_orders = list_create();
-        pthread_mutex_init(&customer->mutex, NULL);
     }
     return customer;
 }
@@ -86,11 +84,10 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
 void customer_destroy(void *data) {
     customer_t *customer;
     if (data) {
-        customer = (customer_t *) customer;
+        customer = (customer_t *) data;
         free(customer->name);
         list_destroy(customer->successful_orders, &receipt_destroy);
         list_destroy(customer->failed_orders, &receipt_destroy);
-        pthread_mutex_destroy(&customer->mutex);
         free(customer);
     }
 }
@@ -125,8 +122,7 @@ void database_destroy(database_t *database) {
 }
 
 /**
- * Adds a new customer to the database. This returns zero on success and an
- * ERRNO on failure.
+ * Adds a new customer to the database.
  */
 void database_add_customer(database_t *database, customer_t *customer) {
     // TODO return ERRNO

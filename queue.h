@@ -28,8 +28,7 @@ void queue_enqueue(queue_t *, void *);
 
 /**
  * Dequeues the data at the front of the queue, or NULL if there are no more
- * elements in the queue. This call will block until the data structure is safe
- * to modify.
+ * elements in the queue. This is a non-blocking function.
  */
 void *queue_dequeue(queue_t *);
 
@@ -38,10 +37,16 @@ void *queue_dequeue(queue_t *);
  * threads are still waiting to perform enequeue or dequeue operations on the
  * specified queue.
  */
-void queue_destroy(queue_t *);
+void queue_destroy(queue_t *, void (*)(void *));
 
 /**
- * Peeks at the top of the queue without dequeueing it.
+ * Determines whether or not the given queue is empty or not.
+ */
+int queue_isempty(queue_t *);
+
+/**
+ * Peeks at the top of the queue without dequeueing it. This is a non-blocking
+ * function.
  */
 const void *queue_peek(queue_t *);
 

@@ -10,7 +10,7 @@
 /**
  * The database containing all customer information.
  */
-database_t *customerDatabase
+database_t *customerDatabase;
 
 /**
  * The megaqueue holding all the book orders to be processed.
@@ -23,7 +23,17 @@ queue_t *queue;
  */
 int is_done;
 
-/** 
+/**
+ * Tells us how many threads are active.
+ */
+int counter;
+
+/**
+ * Indicates whether or not all the threads are done or not.
+ */
+pthread_cond_t complete;
+
+/**
  * Returns a positive number if the filename points to a readable File
  * Returns 0 otherwise
  */
@@ -43,10 +53,10 @@ int is_file(char *filepath) {
  * Prints appropriate usage of this application to stdout
  */
 void print_usage() {
-    printf("./bookorder [arg1] [arg2] [arg3] \n"
-           "[arg1] = the name of the database input file\n"
-           "[arg2] = the name of the book order input file\n"
-           "[arg3] = the list of category names\n");
+    printf("./bookorder <db> <orders> <catlist ...> \n"
+           "\t[db] = the name of the database input file\n"
+           "\t[orders] = the name of the book order input file\n"
+           "\t[catlist] = a list of category names, separated by spaces\n");
 }
 
 
@@ -56,20 +66,22 @@ void print_usage() {
  * category name for this thread.
  */
 void *consumer_thread(void *args) {
-    char *category;
+    char *category, *input;
     customer_t *customer;
     order_t *order;
     receipt_t *receipt;
 
     // Get the category for this thread.
-    strcpy(category, (char *) args);
+    input = (char *) args;
+    category = (char *) malloc(strlen(input) + 1);
+    strcpy(category, input);
 
-    while (is_done != 0) {
+    while (!is_done || !queue_isempty(queue)) {
         // We wait until there is something in the queue
         pthread_mutex_lock(&queue->mutex);
         pthread_cond_wait(&queue->nonempty, &queue->mutex);
 
-        if (is_done == 0) {
+        if (is_done && queue_isempty(queue)) {
             // No more orders to process. Exit this thread.
             pthread_mutex_unlock(&queue->mutex);
             return NULL;
@@ -79,7 +91,9 @@ void *consumer_thread(void *args) {
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
-        else if (strcmp(queue_peek(queue)->category, category) != 0) {
+
+        order = (order_t *) queue_peek(queue);
+        if (strcmp(order->category, category) != 0) {
             // This book is not in our category.
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
@@ -87,15 +101,8 @@ void *consumer_thread(void *args) {
         else {
             // Process the order.
             order = (order_t *) queue_dequeue(queue);
-            // TODO where we unlock this matters. Consider putting it at end
-            pthread_mutex_unlock(queue->mutex);
-            // TODO may have to be placed in book order struct to absolutely
-            // guarantee proper order of execution
-            customer = database_retrieve_customer(
-                    customerDatabase,
-                    order->customer_id);
-
-            pthread_mutex_lock(&customer->mutex);
+            customer = database_retrieve_customer(customerDatabase,
+                                                  order->customer_id);
             receipt = receipt_create(order->title, order->price,
                                      customer->credit_limit - order->price);
             if (customer->credit_limit < order->price) {
@@ -113,29 +120,68 @@ void *consumer_thread(void *args) {
                        order->title, order->price, customer->credit_limit);
                 list_add(customer->successful_orders, receipt);
             }
-            pthread_mutex_unlock(&customer->mutex);
+            order_destroy(order);
+            pthread_mutex_unlock(&queue->mutex);
         }
     }
     return NULL;
 }
+
 
 /**
  * Code for the producer threads. They open an input file and place orders into
  * the queue for processing.
  */
 void *producer_thread(void *args) {
-    // TODO
+    FILE *file;
+    char *category, *lineptr, *title;
+    float price;
+    int customer_id;
+    order_t *order;
+    size_t len;
+    ssize_t read;
+    pthread_t tid;
+
+    // Open the text file containing orders
+    len = 0;
+    lineptr = NULL;
+    file = fopen((char *) args, "r");
+    if (file == NULL) {
+        fprintf(stderr, "An error occurred while opening the file.\n");
+        exit(1);
+    }
+
+    // Begin parsing the order text file line by line
+    while ((read = getline(&lineptr, &len, file)) != -1) {
+        // Parse this line, getting relevant information
+        title = strtok(lineptr, "|");
+        price = atof(strtok(NULL, "|"));
+        customer_id = atoi(strtok(NULL, "|"));
+        category = strtok(NULL, "|");
+
+        // Enqueue this order and alert the consumer threads
+        order = order_create(title, price, customer_id, category);
+        queue_enqueue(queue, order);
+        pthread_cond_signal(&queue->nonempty);
+    }
+
+    // Finally, tell the consumers that we're done producing orders.
+    is_done = 1;
+    pthread_cond_broadcast(&queue->nonempty);
+    free(lineptr);
+    fclose(file);
     return NULL;
 }
+
 
 /**
  * Sets up the customer database
  */
 database_t *setup_database(char *filepath) {
-    FILE *database; 
+    FILE *database;
     char *entry, *lineptr, *name;
     float credit_limit;
-    int customer_id, i;
+    int customer_id;
     size_t len;
     ssize_t read;
     database_t *returnDatabase = database_create();
@@ -143,13 +189,13 @@ database_t *setup_database(char *filepath) {
 
     //make sure filepath is referencing a valid file
     if (is_file(filepath) == 0) {
-        fprintf(stderr, "Error: %s is not a valid filepath\n");
-        return returnDatabase;
+        fprintf(stderr, "Error: %s is not a valid filepath\n", filepath);
+        exit(1);
     }
 
     database = fopen(filepath, "r");
 
-    lineptr = NULL;     
+    lineptr = NULL;
     len = 0;
 
     while ((read = getline(&lineptr, &len, database)) != -1) {
@@ -159,12 +205,12 @@ database_t *setup_database(char *filepath) {
             strcpy(name, entry);
         }
         if ((entry = strtok(NULL, "|")) != NULL) {
-            customer_id = atoi(entry); 
+            customer_id = atoi(entry);
         }
         if ((entry = strtok(NULL, "|")) != NULL) {
             credit_limit = atof(entry);
         }
-        
+
         newCustomer = customer_create(name, customer_id, credit_limit);
         database_add_customer(returnDatabase, newCustomer);
 
@@ -176,19 +222,38 @@ database_t *setup_database(char *filepath) {
 
 
 int main(int argc, char **argv) {
-    //There should be three arguments
-    if (argc != 4) {
+    pthread_t tid;
+    int i;
+
+    // Check for the proper amount of arguments
+    if (argc < 3) {
         fprintf(stderr, "Error: wrong number of arguments\n");
         print_usage();
-        return;
+        return 1;
+    }
+    else if (argc < 4) {
+        fprintf(stderr, "Error: there must be at least one category.\n");
+        return 1;
     }
 
     // Set up customer database from file
     customerDatabase = setup_database(argv[1]);
 
-    // Next, set up the queue and the condition variable
+    // Next, set up the queue
     queue = queue_create();
 
+    // This is the number of threads we'll be spawning
+    counter = argc - 2;
+    pthread_cond_init(&complete, NULL);
+
     // Spawn producer thread
-    // TODO
+    pthread_create(&tid, NULL, producer_thread, (void *) argv[2]);
+
+    // Spawn all the consumer threads
+    for (i = 3; i < argc; i++) {
+        pthread_create(&tid, NULL, consumer_thread, (void *) argv[i]);
+    }
+
+    // Let the producers and consumers run
+    pthread_cond_wait()
 }
