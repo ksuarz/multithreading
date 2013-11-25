@@ -1,6 +1,7 @@
 #ifndef BOOKS_H
 #define BOOKS_H
-#define MAXLISTSIZE 128
+
+#define MAXCUSTOMERS 512
 
 #include "list.h"
 
@@ -64,13 +65,13 @@ customer_t *customer_create(char *, int, float);
 /**
  * Destroys the customer, freeing all data.
  */
-void customer_destroy(void *);
+void customer_destroy(customer_t *);
 
 /**
  * A hash map containing all customers and their data.
  */
 typedef struct database {
-    list_t *customer_list[MAXLISTSIZE];
+    customer_t *customer[MAXCUSTOMERS];
 } database_t;
 
 /**

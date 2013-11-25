@@ -66,18 +66,26 @@ void *consumer_thread(void *args) {
     category = (char *) malloc(strlen(input) + 1);
     strcpy(category, input);
 
+    printf("Consumer thread for category %s created!\n", category);
+
     while (!is_done || !queue_isempty(queue)) {
         // We wait until there is something in the queue
-	printf("about to lock mutecks; category = %s\n", category);
+	printf("Consumer for %s about to lock mutex\n", category);
         pthread_mutex_lock(&queue->mutex);
-        pthread_cond_wait(&queue->nonempty, &queue->mutex);
+        if (!is_done) {
+            printf("Consumer for %s waits for queue to be populated.\n", category);
+            pthread_cond_wait(&queue->nonempty, &queue->mutex);
+        }
+	printf("Consumer for %s has awoken! Checking queue...\n", category);
 
         if (is_done && queue_isempty(queue)) {
+            printf("Consumer for %s detects completion and is exiting.\n", category);
             // No more orders to process. Exit this thread.
             pthread_mutex_unlock(&queue->mutex);
             return NULL;
         }
         else if (queue->last == NULL) {
+            printf("Consumer for %s detects queue is empty again. Unlocking mutex and yielding.\n", category);
             // The queue is empty again.
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
@@ -86,10 +94,12 @@ void *consumer_thread(void *args) {
         order = (order_t *) queue_peek(queue);
         if (strcmp(order->category, category) != 0) {
             // This book is not in our category.
+            printf("Consumer for %s detects next book is not our category. Unlocking mutex and yielding.\n", category);
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
         else {
+            printf("Consumer for %s is now processing an order!\n", category);
             // Process the order.
             order = (order_t *) queue_dequeue(queue);
             customer = database_retrieve_customer(customerDatabase,
@@ -112,6 +122,7 @@ void *consumer_thread(void *args) {
                 list_add(customer->successful_orders, receipt);
             }
             order_destroy(order);
+            printf("Consumer for %s is done processing. Unlocking mutex.\n", category);
             pthread_mutex_unlock(&queue->mutex);
         }
     }
@@ -143,6 +154,7 @@ void *producer_thread(void *args) {
 
     // Begin parsing the order text file line by line
     while ((read = getline(&lineptr, &len, file)) != -1) {
+        printf("Producer is parsing the next line...\n");
         // Parse this line, getting relevant information
         title = strtok(lineptr, "|");
         price = atof(strtok(NULL, "|"));
@@ -152,10 +164,14 @@ void *producer_thread(void *args) {
         // Enqueue this order and alert the consumer threads
         order = order_create(title, price, customer_id, category);
 	//printf("order->title = %s\n", order->title);	
+        printf("Producer is calling enqueue, trying to obtain the mutex.\n");
         queue_enqueue(queue, order);
+        printf("Producer enqueue complete. Unlocking the mutex.\n");
+        printf("Producer is signalling the other threads now.\n");
         pthread_cond_signal(&queue->nonempty);
     }
 
+    printf("Producer is complete. Dying and broadcasting.\n");
     // Finally, tell the consumers that we're done producing orders.
     is_done = 1;
     pthread_cond_broadcast(&queue->nonempty);
@@ -217,8 +233,8 @@ int main(int argc, char **argv) {
     customer_t *customer;
     float revenue;
     int i, num_categories;
-    list_t *customer_list, *receipt_list;
-    node_t *cust_node, *receipt_node;
+    list_t *receipt_list;
+    node_t *receipt_node;
     receipt_t *receipt;
     void *ignore;
 
@@ -280,48 +296,50 @@ int main(int argc, char **argv) {
 
     // Now we can print our final report
     revenue = 0.0f;
-    for (i = 0; i < MAXLISTSIZE; i++) {
-        customer_list = customerDatabase->customer_list[i];
-        cust_node = customer_list->head;
-        while (cust_node != NULL) {
-            customer = (customer_t *) cust_node->data;
-            printf("%s [ID: %d]\n", customer->name, customer->customer_id);
-            printf("Remaining credit: %g\n", customer->credit_limit);
-            printf("Successful orders:\n");
-            
-            if ((receipt_list = customer->successful_orders) == NULL ||
-                 receipt_list->head == NULL) {
-                printf("\tNone.\n");
-            }
-            else {
-                receipt_node = receipt_list->head;
-                while (receipt_node != NULL) {
-                    receipt = (receipt_t *) receipt_node->data;
-                    printf("\tBook: %s\n", receipt->title);
-                    printf("\tPrice: %g\n", receipt->price);
-                    printf("\tCredit remaining: %g\n\n",
-                            receipt->remaining_credit);
-                    revenue += receipt->price;
-                    receipt_node = receipt_node->next;
-                }
-            }
-
-            printf("\nFailed orders:\n");
-            if ((receipt_list = customer->failed_orders) == NULL ||
-                 receipt_list->head == NULL) {
-                printf("\tNone.\n");
-            }
-            else {
-                receipt_node = receipt_list->head;
-                while (receipt_node != NULL) {
-                    receipt = (receipt_t *) receipt_node->data;
-                    printf("\tBook: %s\n", receipt->title);
-                    printf("\tPrice: %g\n\n", receipt->price);
-                }
-            }
-            printf("\n");
-            cust_node = cust_node->next;
+    for (i = 0; i < MAXCUSTOMERS; i++) {
+        customer = customerDatabase->customer[i];
+        if (customer == NULL) {
+            continue;
         }
+
+        // Print out this customer's data
+        printf("%s [ID: %d]\n", customer->name, customer->customer_id);
+        printf("Remaining credit: %g\n", customer->credit_limit);
+
+        // Successful book orders
+        printf("Successful orders:\n");
+        if ((receipt_list = customer->successful_orders) == NULL ||
+             receipt_list->head == NULL) {
+            printf("\tNone.\n");
+        }
+        else {
+            receipt_node = receipt_list->head;
+            while (receipt_node != NULL) {
+                receipt = (receipt_t *) receipt_node->data;
+                printf("\tBook: %s\n", receipt->title);
+                printf("\tPrice: %g\n", receipt->price);
+                printf("\tCredit remaining: %g\n\n",
+                        receipt->remaining_credit);
+                revenue += receipt->price;
+                receipt_node = receipt_node->next;
+            }
+        }
+
+        // Failed book orders
+        printf("\nFailed orders:\n");
+        if ((receipt_list = customer->failed_orders) == NULL ||
+             receipt_list->head == NULL) {
+            printf("\tNone.\n");
+        }
+        else {
+            receipt_node = receipt_list->head;
+            while (receipt_node != NULL) {
+                receipt = (receipt_t *) receipt_node->data;
+                printf("\tBook: %s\n", receipt->title);
+                printf("\tPrice: %g\n\n", receipt->price);
+            }
+        }
+        printf("\n");
     }
 
     printf("Total Revenue: %g\n", revenue);
