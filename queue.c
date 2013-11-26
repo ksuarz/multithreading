@@ -29,19 +29,32 @@ queue_t *queue_create(void) {
  * will block until the data structure is safe to modify.
  */
 void queue_enqueue(queue_t *queue, void *data) {
-    node_t *node;
+    node_t *node, *ptr;
     if (!queue)
         return;
 
     node = node_create(data, NULL);
     pthread_mutex_lock(&queue->mutex);
     if (queue->last == NULL) {
+        // Queue is empty
         queue->last = node;
         queue->last->next = queue->last;
     }
     else {
+        //indraneel version
+        for (ptr = queue->last->next; ptr != queue->last; ptr = ptr->next);
+        node->next = queue->last;
+        ptr->next = node;
+        queue->last = node;
+
+        // General case (a linear time algorithm)
+        // `node` will point to the node whose next is last
+        /*
+        for (ptr = queue->last; ptr->next != queue->last; ptr = ptr->next);
         node->next = queue->last->next;
         queue->last = node;
+        ptr->next = queue->last;
+        */
     }
     pthread_mutex_unlock(&queue->mutex);
 }
@@ -52,11 +65,13 @@ void queue_enqueue(queue_t *queue, void *data) {
  */
 void *queue_dequeue(queue_t *queue) {
     void *data;
+    node_t *to_destroy;
+
     if (queue == NULL || queue->last == NULL) {
         return NULL;
     }
 
-    if (queue->last == queue->last->next) {
+    if (!queue->last->next || queue->last == queue->last->next) {
         // Only one item left in the queue
         data = queue->last->data;
         node_destroy(queue->last);
@@ -64,8 +79,11 @@ void *queue_dequeue(queue_t *queue) {
     }
     else {
         // General case
+        // TODO this leaks the memory in the order
+        to_destroy = queue->last->next;
         data = queue->last->next->data;
         queue->last->next = queue->last->next->next;
+        node_destroy(to_destroy);
     }
     return data;
 }

@@ -72,29 +72,32 @@ void *consumer_thread(void *args) {
         // We wait until there is something in the queue
 	printf("Consumer for %s about to lock mutex\n", category);
         pthread_mutex_lock(&queue->mutex);
-        if (!is_done) {
+
+        if (!is_done && queue_isempty(queue)) {
             printf("Consumer for %s waits for queue to be populated.\n", category);
             pthread_cond_wait(&queue->nonempty, &queue->mutex);
+            printf("Consumer for %s has awoken from waiting!\n", category);
         }
-	printf("Consumer for %s has awoken! Checking queue...\n", category);
 
+        printf("Consumer for %s is examining the queue.\n", category);
         if (is_done && queue_isempty(queue)) {
             printf("Consumer for %s detects completion and is exiting.\n", category);
             // No more orders to process. Exit this thread.
             pthread_mutex_unlock(&queue->mutex);
             return NULL;
         }
-        else if (queue->last == NULL) {
+        else if (queue_isempty(queue)) {
             printf("Consumer for %s detects queue is empty again. Unlocking mutex and yielding.\n", category);
             // The queue is empty again.
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
+            continue;
         }
 
         order = (order_t *) queue_peek(queue);
         if (strcmp(order->category, category) != 0) {
             // This book is not in our category.
-            printf("Consumer for %s detects next book is not our category. Unlocking mutex and yielding.\n", category);
+            printf("Consumer for %s detects next book %s of category %s is not our category. Unlocking mutex and yielding.\n", category, order->title, order->category);
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
@@ -137,6 +140,7 @@ void *consumer_thread(void *args) {
 void *producer_thread(void *args) {
     FILE *file;
     char *category, *lineptr, *title;
+    const char *delims = "|\r\n";
     float price;
     int customer_id;
     order_t *order;
@@ -156,16 +160,19 @@ void *producer_thread(void *args) {
     while ((read = getline(&lineptr, &len, file)) != -1) {
         printf("Producer is parsing the next line...\n");
         // Parse this line, getting relevant information
-        title = strtok(lineptr, "|");
-        price = atof(strtok(NULL, "|"));
-        customer_id = atoi(strtok(NULL, "|"));
-        category = strtok(NULL, "|");
+        title = strtok(lineptr, delims);
+        price = atof(strtok(NULL, delims));
+        customer_id = atoi(strtok(NULL, delims));
+        category = strtok(NULL, delims);
 
         // Enqueue this order and alert the consumer threads
         order = order_create(title, price, customer_id, category);
+        if (order == NULL) {
+            fprintf(stderr, "Consumer attempted to make an order but the call failed.\n");
+        }
 	//printf("order->title = %s\n", order->title);	
-        printf("Producer is calling enqueue, trying to obtain the mutex.\n");
-        queue_enqueue(queue, order);
+        printf("Producer is calling to enqueue %s, trying to obtain the mutex.\n", title);
+        queue_enqueue(queue, (void *) order);
         printf("Producer enqueue complete. Unlocking the mutex.\n");
         printf("Producer is signalling the other threads now.\n");
         pthread_cond_signal(&queue->nonempty);
