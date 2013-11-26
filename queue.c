@@ -25,8 +25,7 @@ queue_t *queue_create(void) {
 }
 
 /**
- * Enqueues the given data into the queue in a synchronized fashion. This call
- * will block until the data structure is safe to modify.
+ * Enqueues the given data into the queue.
  */
 void queue_enqueue(queue_t *queue, void *data) {
     node_t *node;
@@ -34,7 +33,6 @@ void queue_enqueue(queue_t *queue, void *data) {
         return;
 
     node = node_create(data, NULL);
-    pthread_mutex_lock(&queue->mutex);
     if (queue->last == NULL) {
         // Queue is empty
         queue->last = node;
@@ -46,12 +44,13 @@ void queue_enqueue(queue_t *queue, void *data) {
         queue->last->next = node;
         queue->last = node;
     }
-    pthread_mutex_unlock(&queue->mutex);
 }
 
 /**
  * Dequeues the data at the front of the queue, or NULL if there are no more
  * elements in the queue. This is a non-blocking function.
+ * The client is reponsible for freeing the data being returned if it has been
+ * dynamically allocated.
  */
 void *queue_dequeue(queue_t *queue) {
     void *data;
@@ -69,7 +68,6 @@ void *queue_dequeue(queue_t *queue) {
     }
     else {
         // General case
-        // TODO this leaks the memory in the order
         to_destroy = queue->last->next;
         data = queue->last->next->data;
         queue->last->next = queue->last->next->next;

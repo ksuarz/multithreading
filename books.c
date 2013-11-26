@@ -1,5 +1,5 @@
 #include "books.h"
-#include "list.h"
+#include "queue.h"
 #include "node.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,8 +69,8 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
         customer->credit_limit = credit_limit;
         customer->name = (char *) malloc(strlen(name) + 1);
         strcpy(customer->name, name);
-        customer->successful_orders = list_create();
-        customer->failed_orders = list_create();
+        customer->successful_orders = queue_create();
+        customer->failed_orders = queue_create();
     }
     return customer;
 }
@@ -81,8 +81,8 @@ customer_t *customer_create(char *name, int customer_id, float credit_limit) {
 void customer_destroy(customer_t *customer) {
     if (customer) {
         free(customer->name);
-        list_destroy(customer->successful_orders, &receipt_destroy);
-        list_destroy(customer->failed_orders, &receipt_destroy);
+        queue_destroy(customer->successful_orders, &receipt_destroy);
+        queue_destroy(customer->failed_orders, &receipt_destroy);
         free(customer);
     }
 }

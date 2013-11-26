@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "queue.h"
-#include "list.h"
 #include "books.h"
 
 /**
@@ -114,7 +113,7 @@ void *consumer_thread(void *args) {
                 printf("Customer %s has insufficient funds to purchase '%s'. "
                        "Remaining credit limit is $%.2f.\n", customer->name,
                        order->title, customer->credit_limit);
-                list_add(customer->failed_orders, receipt);
+                queue_enqueue(customer->failed_orders, receipt);
             }
             else {
                 // Subtract price from remaining credit
@@ -122,7 +121,7 @@ void *consumer_thread(void *args) {
                 printf("Customer %s has successfully purchased '%s' for $%.2f. "
                        "Remaining credit limit is $%.2f.\n", customer->name,
                        order->title, order->price, customer->credit_limit);
-                list_add(customer->successful_orders, receipt);
+                queue_enqueue(customer->successful_orders, receipt);
             }
             order_destroy(order);
             printf("Consumer for %s is done processing. Unlocking mutex.\n", category);
@@ -172,7 +171,9 @@ void *producer_thread(void *args) {
         }
 	//printf("order->title = %s\n", order->title);	
         printf("Producer is calling to enqueue %s, trying to obtain the mutex.\n", title);
+        pthread_mutex_lock(&queue->mutex);
         queue_enqueue(queue, (void *) order);
+        pthread_mutex_unlock(&queue->mutex);
         printf("Producer enqueue complete. Unlocking the mutex.\n");
         printf("Producer is signalling the other threads now.\n");
         pthread_cond_signal(&queue->nonempty);
@@ -240,8 +241,6 @@ int main(int argc, char **argv) {
     customer_t *customer;
     float revenue;
     int i, num_categories;
-    list_t *receipt_list;
-    node_t *receipt_node;
     receipt_t *receipt;
     void *ignore;
 
@@ -315,36 +314,28 @@ int main(int argc, char **argv) {
 
         // Successful book orders
         printf("Successful orders:\n");
-        if ((receipt_list = customer->successful_orders) == NULL ||
-             receipt_list->head == NULL) {
-            printf("\tNone.\n");
+        if (queue_isempty(customer->successful_orders)) {
+                printf("\tNone.\n");
         }
         else {
-            receipt_node = receipt_list->head;
-            while (receipt_node != NULL) {
-                receipt = (receipt_t *) receipt_node->data;
+            while ((receipt = (receipt_t *) queue_dequeue(customer->successful_orders)) != NULL) {
                 printf("\tBook: %s\n", receipt->title);
                 printf("\tPrice: $%.2f\n", receipt->price);
                 printf("\tCredit remaining: $%.2f\n\n",
                         receipt->remaining_credit);
                 revenue += receipt->price;
-                receipt_node = receipt_node->next;
             }
         }
 
         // Failed book orders
         printf("\nFailed orders:\n");
-        if ((receipt_list = customer->failed_orders) == NULL ||
-             receipt_list->head == NULL) {
+        if (queue_isempty(customer->failed_orders)) {
             printf("\tNone.\n");
         }
         else {
-            receipt_node = receipt_list->head;
-            while (receipt_node != NULL) {
-                receipt = (receipt_t *) receipt_node->data;
+            while ((receipt = (receipt_t *) queue_dequeue(customer->failed_orders)) != NULL) {
                 printf("\tBook: %s\n", receipt->title);
                 printf("\tPrice: $%.2f\n\n", receipt->price);
-                receipt_node = receipt_node->next;
             }
         }
         printf("\n");

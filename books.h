@@ -3,7 +3,7 @@
 
 #define MAXCUSTOMERS 512
 
-#include "list.h"
+#include "queue.h"
 
 /**
  * A structure holding the information for book orders.
@@ -53,8 +53,8 @@ typedef struct customer {
     char *name;
     int customer_id;
     float credit_limit;
-    list_t *successful_orders;
-    list_t *failed_orders;
+    queue_t *successful_orders;
+    queue_t *failed_orders;
 } customer_t;
 
 /**
