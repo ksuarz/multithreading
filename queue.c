@@ -29,7 +29,7 @@ queue_t *queue_create(void) {
  * will block until the data structure is safe to modify.
  */
 void queue_enqueue(queue_t *queue, void *data) {
-    node_t *node, *ptr;
+    node_t *node;
     if (!queue)
         return;
 
@@ -41,20 +41,10 @@ void queue_enqueue(queue_t *queue, void *data) {
         queue->last->next = queue->last;
     }
     else {
-        //indraneel version
-        for (ptr = queue->last->next; ptr != queue->last; ptr = ptr->next);
-        node->next = queue->last;
-        ptr->next = node;
-        queue->last = node;
-
-        // General case (a linear time algorithm)
-        // `node` will point to the node whose next is last
-        /*
-        for (ptr = queue->last; ptr->next != queue->last; ptr = ptr->next);
+        // General case - Indraneel's constant time version
         node->next = queue->last->next;
+        queue->last->next = node;
         queue->last = node;
-        ptr->next = queue->last;
-        */
     }
     pthread_mutex_unlock(&queue->mutex);
 }

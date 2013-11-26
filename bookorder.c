@@ -111,16 +111,16 @@ void *consumer_thread(void *args) {
                                      customer->credit_limit - order->price);
             if (customer->credit_limit < order->price) {
                 // Insufficient funds.
-                printf("Customer %s has insufficient funds to purchase '%s'."
-                       "Remaining credit limit is %g.\n", customer->name,
+                printf("Customer %s has insufficient funds to purchase '%s'. "
+                       "Remaining credit limit is $%.2f.\n", customer->name,
                        order->title, customer->credit_limit);
                 list_add(customer->failed_orders, receipt);
             }
             else {
                 // Subtract price from remaining credit
                 customer->credit_limit -= order->price;
-                printf("Customer %s has successfully purchased '%s' for %g."
-                       "Remaining credit limit is %g.\n", customer->name,
+                printf("Customer %s has successfully purchased '%s' for $%.2f. "
+                       "Remaining credit limit is $%.2f.\n", customer->name,
                        order->title, order->price, customer->credit_limit);
                 list_add(customer->successful_orders, receipt);
             }
@@ -286,20 +286,21 @@ int main(int argc, char **argv) {
     // Spawn producer thread
     pthread_create(&tid[0], NULL, producer_thread, (void *) argv[2]);
     printf("spawn \n");
+    pthread_join(tid[0], &ignore);
 
     // Spawn all the consumer threads
     for (i = 0; i < num_categories; i++) {
         pthread_create(&tid[i + 1], NULL, consumer_thread, all_categories[i]);
     }
-    printf("spawn threads\n");
+    printf("Main is done spawning the consumers.\n");
 
     // Wait for all the other threads to finish before continuing
-    printf("begin wait\n");
+    printf("Main begins joining on the other threads.\n");
     for (i = 0; i < num_categories + 1; i++) {
         pthread_join(tid[i], &ignore);
-	printf("continue wait\n");
+	printf("A thread has exited, but main keeps waiting.\n");
     }
-    printf("end wait\n");
+    printf("Main is done waiting. Beginning final report.\n");
 
     // Now we can print our final report
     revenue = 0.0f;
@@ -311,7 +312,7 @@ int main(int argc, char **argv) {
 
         // Print out this customer's data
         printf("%s [ID: %d]\n", customer->name, customer->customer_id);
-        printf("Remaining credit: %g\n", customer->credit_limit);
+        printf("Remaining credit: $%.2f\n", customer->credit_limit);
 
         // Successful book orders
         printf("Successful orders:\n");
@@ -324,8 +325,8 @@ int main(int argc, char **argv) {
             while (receipt_node != NULL) {
                 receipt = (receipt_t *) receipt_node->data;
                 printf("\tBook: %s\n", receipt->title);
-                printf("\tPrice: %g\n", receipt->price);
-                printf("\tCredit remaining: %g\n\n",
+                printf("\tPrice: $%.2f\n", receipt->price);
+                printf("\tCredit remaining: $%.2f\n\n",
                         receipt->remaining_credit);
                 revenue += receipt->price;
                 receipt_node = receipt_node->next;
@@ -343,13 +344,13 @@ int main(int argc, char **argv) {
             while (receipt_node != NULL) {
                 receipt = (receipt_t *) receipt_node->data;
                 printf("\tBook: %s\n", receipt->title);
-                printf("\tPrice: %g\n\n", receipt->price);
+                printf("\tPrice: $%.2f\n\n", receipt->price);
             }
         }
         printf("\n");
     }
 
-    printf("Total Revenue: %g\n", revenue);
+    printf("Total Revenue: $%.2f\n", revenue);
 
     // Free all the memory we allocated
     database_destroy(customerDatabase);
