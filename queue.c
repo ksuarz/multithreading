@@ -89,7 +89,10 @@ void queue_destroy(queue_t *queue, void (*destroy_func)(void *)) {
         pthread_mutex_destroy(&queue->mutex);
         pthread_cond_destroy(&queue->nonempty);
 
-        if (queue->last == queue->last->next) {
+        if (!queue->last) {
+            // Empty queue, so do nothing
+        }
+        else if (queue->last == queue->last->next) {
             // Special case: size one queue
             node_destroy(queue->last);
         }

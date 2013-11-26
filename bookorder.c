@@ -286,7 +286,6 @@ int main(int argc, char **argv) {
     // Spawn producer thread
     pthread_create(&tid[0], NULL, producer_thread, (void *) argv[2]);
     printf("spawn \n");
-    pthread_join(tid[0], &ignore);
 
     // Spawn all the consumer threads
     for (i = 0; i < num_categories; i++) {
@@ -345,6 +344,7 @@ int main(int argc, char **argv) {
                 receipt = (receipt_t *) receipt_node->data;
                 printf("\tBook: %s\n", receipt->title);
                 printf("\tPrice: $%.2f\n\n", receipt->price);
+                receipt_node = receipt_node->next;
             }
         }
         printf("\n");
