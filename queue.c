@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "node.h"
 #include "queue.h"
@@ -30,19 +29,32 @@ queue_t *queue_create(void) {
  * will block until the data structure is safe to modify.
  */
 void queue_enqueue(queue_t *queue, void *data) {
-    node_t *node;
+    node_t *node, *ptr;
     if (!queue)
         return;
 
     node = node_create(data, NULL);
     pthread_mutex_lock(&queue->mutex);
     if (queue->last == NULL) {
+        // Queue is empty
         queue->last = node;
         queue->last->next = queue->last;
     }
     else {
+        //indraneel version
+        for (ptr = queue->last->next; ptr != queue->last; ptr = ptr->next);
+        node->next = queue->last;
+        ptr->next = node;
+        queue->last = node;
+
+        // General case (a linear time algorithm)
+        // `node` will point to the node whose next is last
+        /*
+        for (ptr = queue->last; ptr->next != queue->last; ptr = ptr->next);
         node->next = queue->last->next;
         queue->last = node;
+        ptr->next = queue->last;
+        */
     }
     pthread_mutex_unlock(&queue->mutex);
 }
@@ -52,7 +64,6 @@ void queue_enqueue(queue_t *queue, void *data) {
  * elements in the queue. This is a non-blocking function.
  */
 void *queue_dequeue(queue_t *queue) {
-    printf("Attempting to dequeue...\n");
     void *data;
     node_t *to_destroy;
 
@@ -62,7 +73,6 @@ void *queue_dequeue(queue_t *queue) {
 
     if (!queue->last->next || queue->last == queue->last->next) {
         // Only one item left in the queue
-        printf("Only one item left in the queue.\n");
         data = queue->last->data;
         node_destroy(queue->last);
         queue->last = NULL;
@@ -70,8 +80,8 @@ void *queue_dequeue(queue_t *queue) {
     else {
         // General case
         // TODO this leaks the memory in the order
-        printf("Dequeue: general case.\n");
         to_destroy = queue->last->next;
+        data = queue->last->next->data;
         queue->last->next = queue->last->next->next;
         node_destroy(to_destroy);
     }

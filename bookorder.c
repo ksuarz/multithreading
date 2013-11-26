@@ -91,6 +91,7 @@ void *consumer_thread(void *args) {
             // The queue is empty again.
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
+            continue;
         }
 
         order = (order_t *) queue_peek(queue);
