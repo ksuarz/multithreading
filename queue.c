@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "node.h"
 #include "queue.h"
@@ -51,21 +52,28 @@ void queue_enqueue(queue_t *queue, void *data) {
  * elements in the queue. This is a non-blocking function.
  */
 void *queue_dequeue(queue_t *queue) {
+    printf("Attempting to dequeue...\n");
     void *data;
+    node_t *to_destroy;
+
     if (queue == NULL || queue->last == NULL) {
         return NULL;
     }
 
-    if (queue->last == queue->last->next) {
+    if (!queue->last->next || queue->last == queue->last->next) {
         // Only one item left in the queue
+        printf("Only one item left in the queue.\n");
         data = queue->last->data;
         node_destroy(queue->last);
         queue->last = NULL;
     }
     else {
         // General case
-        data = queue->last->next->data;
+        // TODO this leaks the memory in the order
+        printf("Dequeue: general case.\n");
+        to_destroy = queue->last->next;
         queue->last->next = queue->last->next->next;
+        node_destroy(to_destroy);
     }
     return data;
 }
