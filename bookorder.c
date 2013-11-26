@@ -23,6 +23,11 @@ queue_t *queue;
 int is_done;
 
 /**
+ * All of the input categories, but formatted as one string.
+ */
+char *input_categories;
+
+/**
  * Returns a positive number if the filename points to a readable File
  * Returns 0 otherwise
  */
@@ -39,13 +44,13 @@ int is_file(char *filepath) {
 
 
 /**
- * Prints appropriate usage of this application to stdout
+ * Prints appropriate usage of this application to standard out.
  */
 void print_usage() {
-    printf("./bookorder <db> <orders> <catlist> \n"
-           "\t[db] = the name of the database input file\n"
-           "\t[orders] = the name of the book order input file\n"
-           "\t[catlist] = a quoted list of category names, separated by spaces\n");
+    printf("./bookorder <db> <orders> <cats> \n"
+           "\t<db> = the name of the database input file\n"
+           "\t<orders> = the name of the book order input file\n"
+           "\t<cats> = a quoted list of category names, separated by spaces\n");
 }
 
 
@@ -65,28 +70,20 @@ void *consumer_thread(void *args) {
     category = (char *) malloc(strlen(input) + 1);
     strcpy(category, input);
 
-    printf("Consumer thread for category %s created!\n", category);
-
     while (!is_done || !queue_isempty(queue)) {
         // We wait until there is something in the queue
-	printf("Consumer for %s about to lock mutex\n", category);
         pthread_mutex_lock(&queue->mutex);
 
         if (!is_done && queue_isempty(queue)) {
-            printf("Consumer for %s waits for queue to be populated.\n", category);
             pthread_cond_wait(&queue->nonempty, &queue->mutex);
-            printf("Consumer for %s has awoken from waiting!\n", category);
         }
 
-        printf("Consumer for %s is examining the queue.\n", category);
         if (is_done && queue_isempty(queue)) {
-            printf("Consumer for %s detects completion and is exiting.\n", category);
             // No more orders to process. Exit this thread.
             pthread_mutex_unlock(&queue->mutex);
             return NULL;
         }
         else if (queue_isempty(queue)) {
-            printf("Consumer for %s detects queue is empty again. Unlocking mutex and yielding.\n", category);
             // The queue is empty again.
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
@@ -96,35 +93,46 @@ void *consumer_thread(void *args) {
         order = (order_t *) queue_peek(queue);
         if (strcmp(order->category, category) != 0) {
             // This book is not in our category.
-            printf("Consumer for %s detects next book %s of category %s is not our category. Unlocking mutex and yielding.\n", category, order->title, order->category);
             pthread_mutex_unlock(&queue->mutex);
             sched_yield();
         }
         else {
-            printf("Consumer for %s is now processing an order!\n", category);
             // Process the order.
             order = (order_t *) queue_dequeue(queue);
             customer = database_retrieve_customer(customerDatabase,
                                                   order->customer_id);
-            receipt = receipt_create(order->title, order->price,
-                                     customer->credit_limit - order->price);
-            if (customer->credit_limit < order->price) {
-                // Insufficient funds.
-                printf("Customer %s has insufficient funds to purchase '%s'. "
-                       "Remaining credit limit is $%.2f.\n", customer->name,
-                       order->title, customer->credit_limit);
-                queue_enqueue(customer->failed_orders, receipt);
+            if (!customer) {
+                // Invalid customer ID
+                fprintf(stderr, "There is no customer in the database with"
+                        "customer ID %d.\n", order->customer_id);
             }
             else {
-                // Subtract price from remaining credit
-                customer->credit_limit -= order->price;
-                printf("Customer %s has successfully purchased '%s' for $%.2f. "
-                       "Remaining credit limit is $%.2f.\n", customer->name,
-                       order->title, order->price, customer->credit_limit);
-                queue_enqueue(customer->successful_orders, receipt);
+                receipt = receipt_create(order->title,
+                                         order->price,
+                                         customer->credit_limit - order->price);
+                if (customer->credit_limit < order->price) {
+                    // Insufficient funds.
+                    printf("%s has insufficient funds for a purchase.\n"
+                           "\tBook: %s\n\tRemaining credit: $%.2f\n\n",
+                           customer->name,
+                           order->title,
+                           customer->credit_limit);
+                    queue_enqueue(customer->failed_orders, receipt);
+                }
+                else {
+                    // Subtract price from remaining credit
+                    customer->credit_limit -= order->price;
+                    printf("Customer %s has made a successful purchase!\n"
+                           "\tBook: %s\n\tPrice: $%.2f\n"
+                           "\tRemaining credit: $%.2f\n\n",
+                           customer->name,
+                           order->title,
+                           order->price,
+                           customer->credit_limit);
+                    queue_enqueue(customer->successful_orders, receipt);
+                }
             }
             order_destroy(order);
-            printf("Consumer for %s is done processing. Unlocking mutex.\n", category);
             pthread_mutex_unlock(&queue->mutex);
         }
     }
@@ -157,29 +165,29 @@ void *producer_thread(void *args) {
 
     // Begin parsing the order text file line by line
     while ((read = getline(&lineptr, &len, file)) != -1) {
-        printf("Producer is parsing the next line...\n");
         // Parse this line, getting relevant information
         title = strtok(lineptr, delims);
         price = atof(strtok(NULL, delims));
         customer_id = atoi(strtok(NULL, delims));
         category = strtok(NULL, delims);
 
-        // Enqueue this order and alert the consumer threads
-        order = order_create(title, price, customer_id, category);
-        if (order == NULL) {
-            fprintf(stderr, "Consumer attempted to make an order but the call failed.\n");
+        if (strstr(input_categories, category) == NULL) {
+            fprintf(stderr, "The category %s is not a valid category as "
+                    "specified in the input. This order will be skipped.\n",
+                    category);
+            continue;
         }
-	//printf("order->title = %s\n", order->title);	
-        printf("Producer is calling to enqueue %s, trying to obtain the mutex.\n", title);
+
+        // Enqueue this order in a thread-safe manner
+        order = order_create(title, price, customer_id, category);
         pthread_mutex_lock(&queue->mutex);
         queue_enqueue(queue, (void *) order);
         pthread_mutex_unlock(&queue->mutex);
-        printf("Producer enqueue complete. Unlocking the mutex.\n");
-        printf("Producer is signalling the other threads now.\n");
+
+        // Alert the consumers
         pthread_cond_signal(&queue->nonempty);
     }
 
-    printf("Producer is complete. Dying and broadcasting.\n");
     // Finally, tell the consumers that we're done producing orders.
     is_done = 1;
     pthread_cond_broadcast(&queue->nonempty);
@@ -236,6 +244,9 @@ database_t *setup_database(char *filepath) {
 }
 
 
+/**
+ * Runs the program.
+ */
 int main(int argc, char **argv) {
     char *category, **all_categories;
     customer_t *customer;
@@ -252,7 +263,8 @@ int main(int argc, char **argv) {
     }
 
     // Figure out how many categories there are
-    // TODO can be cleaned up
+    input_categories = malloc(strlen(argv[3]) + 1);
+    strcpy(input_categories, argv[3]);
     all_categories = (char **) calloc(1024, sizeof(char *));
     num_categories = 0;
     category = strtok(argv[3], " ");
@@ -272,35 +284,26 @@ int main(int argc, char **argv) {
 
     // Holds all the thread ids spawned later
     pthread_t tid[num_categories + 1];
-    printf("created pthread arr\n");
 
-    // Set up customer database from file
+    // Set up customer database from file and our queue
     customerDatabase = setup_database(argv[1]);
-    printf("set up database\n");
-
-    // Next, set up the queue
     queue = queue_create();
-    printf("queue create\n");
 
     // Spawn producer thread
     pthread_create(&tid[0], NULL, producer_thread, (void *) argv[2]);
-    printf("spawn \n");
 
     // Spawn all the consumer threads
     for (i = 0; i < num_categories; i++) {
         pthread_create(&tid[i + 1], NULL, consumer_thread, all_categories[i]);
     }
-    printf("Main is done spawning the consumers.\n");
 
     // Wait for all the other threads to finish before continuing
-    printf("Main begins joining on the other threads.\n");
     for (i = 0; i < num_categories + 1; i++) {
         pthread_join(tid[i], &ignore);
-	printf("A thread has exited, but main keeps waiting.\n");
     }
-    printf("Main is done waiting. Beginning final report.\n");
 
     // Now we can print our final report
+    printf("\n\n");
     revenue = 0.0f;
     for (i = 0; i < MAXCUSTOMERS; i++) {
         customer = customerDatabase->customer[i];
@@ -309,36 +312,40 @@ int main(int argc, char **argv) {
         }
 
         // Print out this customer's data
-        printf("%s [ID: %d]\n", customer->name, customer->customer_id);
-        printf("Remaining credit: $%.2f\n", customer->credit_limit);
+        printf("=== Customer Info ===\n");
+        printf("--- Balance ---\n");
+        printf("Customer name: %s\n", customer->name);
+        printf("Customer ID number: %d\n", customer->customer_id);
+        printf("Remaining credit: %.2f\n", customer->credit_limit);
 
         // Successful book orders
-        printf("Successful orders:\n");
+        printf("\n--- Successful orders ---\n");
         if (queue_isempty(customer->successful_orders)) {
                 printf("\tNone.\n");
         }
         else {
-            while ((receipt = (receipt_t *) queue_dequeue(customer->successful_orders)) != NULL) {
-                printf("\tBook: %s\n", receipt->title);
-                printf("\tPrice: $%.2f\n", receipt->price);
-                printf("\tCredit remaining: $%.2f\n\n",
-                        receipt->remaining_credit);
+            while ((receipt = (receipt_t *)
+                        queue_dequeue(customer->successful_orders)) != NULL) {
+                printf("%s|%.2f|%.2f\n", receipt->title, receipt->price,
+                                           receipt->remaining_credit);
                 revenue += receipt->price;
+                receipt_destroy(receipt);
             }
         }
 
         // Failed book orders
-        printf("\nFailed orders:\n");
+        printf("\n--- Failed orders ---\n");
         if (queue_isempty(customer->failed_orders)) {
-            printf("\tNone.\n");
+            printf("None.\n");
         }
         else {
-            while ((receipt = (receipt_t *) queue_dequeue(customer->failed_orders)) != NULL) {
-                printf("\tBook: %s\n", receipt->title);
-                printf("\tPrice: $%.2f\n\n", receipt->price);
+            while ((receipt = (receipt_t *)
+                        queue_dequeue(customer->failed_orders)) != NULL) {
+                printf("%s|%.2f\n", receipt->title, receipt->price);
+                receipt_destroy(receipt);
             }
         }
-        printf("\n");
+        printf("=== End Customer Info ===\n\n");
     }
 
     printf("Total Revenue: $%.2f\n", revenue);
