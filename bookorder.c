@@ -136,6 +136,8 @@ void *consumer_thread(void *args) {
             pthread_mutex_unlock(&queue->mutex);
         }
     }
+
+    free(category);
     return NULL;
 }
 
@@ -160,7 +162,7 @@ void *producer_thread(void *args) {
     file = fopen((char *) args, "r");
     if (file == NULL) {
         fprintf(stderr, "An error occurred while opening the file.\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Begin parsing the order text file line by line
@@ -213,7 +215,7 @@ database_t *setup_database(char *filepath) {
     //make sure filepath is referencing a valid file
     if (is_file(filepath) == 0) {
         fprintf(stderr, "Error: %s is not a valid filepath\n", filepath);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     database = fopen(filepath, "r");
@@ -259,7 +261,7 @@ int main(int argc, char **argv) {
     if (argc != 4) {
         fprintf(stderr, "Error: wrong number of arguments\n");
         print_usage();
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Figure out how many categories there are
@@ -270,7 +272,7 @@ int main(int argc, char **argv) {
     category = strtok(argv[3], " ");
     if (category == NULL) {
         fprintf(stderr, "Error: Must specify at least one category.\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     all_categories[0] = malloc(strlen(category) + 1);
     strcpy(all_categories[0], category);
@@ -353,5 +355,5 @@ int main(int argc, char **argv) {
     // Free all the memory we allocated
     database_destroy(customerDatabase);
     queue_destroy(queue, NULL);
-    return 0;
+    return EXIT_SUCCESS;
 }
